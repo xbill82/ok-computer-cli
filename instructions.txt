@@ -1,0 +1,13 @@
+This project is an oclif CLI. Let's generate a new command called `hours`.
+This command's aim is the compute the amount of hours I have spent on each epic of my projects.
+
+The command will take a query as the input argument, which will be a string that describes the epic, as well as a date range.
+
+The command will then fetch the events from my Google Calendar and compute the sum of the duration of the events (within the date range)
+that contain the epic name in their title.
+
+The command will then print the result in a human readable format.
+
+To implement this, you can use the Google Calendar API, so install the needed dependencies.
+Also, tell me what I need to do to get the Google Calendar API working.
+Of course, create the necessary files and folders.
