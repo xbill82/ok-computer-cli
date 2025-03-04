@@ -12,8 +12,9 @@ import path from 'node:path'
 export class Hours extends Command {
   static args = {
     query: Args.string({
+      default: '*',
       description: 'Epic name to search for in event titles',
-      required: true,
+      required: false,
     }),
   }
 
@@ -56,9 +57,12 @@ export class Hours extends Command {
     })
 
     const events = response.data.items || []
-    const matchingEvents = events.filter((event: CalendarV3.Schema$Event) =>
-      event.summary?.toLowerCase().includes(args.query.toLowerCase()),
-    )
+    const matchingEvents =
+      args.query === '*'
+        ? events
+        : events.filter((event: CalendarV3.Schema$Event) =>
+            event.summary?.toLowerCase().includes(args.query.toLowerCase()),
+          )
 
     const totalHours = matchingEvents.reduce(
       (sum: number, event: CalendarV3.Schema$Event) => sum + this.calculateDuration(event),

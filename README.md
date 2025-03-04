@@ -29,9 +29,9 @@ USAGE
 <!-- usagestop -->
 # Commands
 <!-- commands -->
-* [`okc hello PERSON`](#okc-hello-person)
-* [`okc hello world`](#okc-hello-world)
+* [`okc auth`](#okc-auth)
 * [`okc help [COMMAND]`](#okc-help-command)
+* [`okc hours [QUERY]`](#okc-hours-query)
 * [`okc plugins`](#okc-plugins)
 * [`okc plugins add PLUGIN`](#okc-plugins-add-plugin)
 * [`okc plugins:inspect PLUGIN...`](#okc-pluginsinspect-plugin)
@@ -43,47 +43,19 @@ USAGE
 * [`okc plugins unlink [PLUGIN]`](#okc-plugins-unlink-plugin)
 * [`okc plugins update`](#okc-plugins-update)
 
-## `okc hello PERSON`
+## `okc auth`
 
-Say hello
-
-```
-USAGE
-  $ okc hello PERSON -f <value>
-
-ARGUMENTS
-  PERSON  Person to say hello to
-
-FLAGS
-  -f, --from=<value>  (required) Who is saying hello
-
-DESCRIPTION
-  Say hello
-
-EXAMPLES
-  $ okc hello friend --from oclif
-  hello friend from oclif! (./src/commands/hello/index.ts)
-```
-
-_See code: [src/commands/hello/index.ts](https://github.com/xbill82/ok-computer-cli/blob/v0.0.0/src/commands/hello/index.ts)_
-
-## `okc hello world`
-
-Say hello world
+Authenticate with Google Calendar
 
 ```
 USAGE
-  $ okc hello world
+  $ okc auth
 
 DESCRIPTION
-  Say hello world
-
-EXAMPLES
-  $ okc hello world
-  hello world! (./src/commands/hello/world.ts)
+  Authenticate with Google Calendar
 ```
 
-_See code: [src/commands/hello/world.ts](https://github.com/xbill82/ok-computer-cli/blob/v0.0.0/src/commands/hello/world.ts)_
+_See code: [src/commands/auth.ts](https://github.com/xbill82/ok-computer-cli/blob/v0.0.0/src/commands/auth.ts)_
 
 ## `okc help [COMMAND]`
 
@@ -104,6 +76,28 @@ DESCRIPTION
 ```
 
 _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.2.20/src/commands/help.ts)_
+
+## `okc hours [QUERY]`
+
+Calculate hours spent on epics from Google Calendar events
+
+```
+USAGE
+  $ okc hours [QUERY] [-e <value>] [-s <value>] [-v]
+
+ARGUMENTS
+  QUERY  [default: *] Epic name to search for in event titles
+
+FLAGS
+  -e, --end-date=<value>    [default: 2025-03-04] End date (YYYY-MM-DD)
+  -s, --start-date=<value>  [default: 2024-12-04] Start date (YYYY-MM-DD)
+  -v, --verbose             Shows the matching events
+
+DESCRIPTION
+  Calculate hours spent on epics from Google Calendar events
+```
+
+_See code: [src/commands/hours.ts](https://github.com/xbill82/ok-computer-cli/blob/v0.0.0/src/commands/hours.ts)_
 
 ## `okc plugins`
 
