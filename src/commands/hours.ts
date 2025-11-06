@@ -1,13 +1,11 @@
 /* eslint-disable perfectionist/sort-classes */
-/* eslint-disable camelcase */
 import type {calendar_v3 as CalendarV3} from '@googleapis/calendar'
 
 import {calendar} from '@googleapis/calendar'
 import {Args, Command, Flags} from '@oclif/core'
 import {addDays, format, parseISO} from 'date-fns'
-import {OAuth2Client} from 'google-auth-library'
-import * as fs from 'node:fs'
-import path from 'node:path'
+
+import {getAuthClient} from '../services/auth.js'
 
 export class Hours extends Command {
   static args = {
@@ -42,7 +40,7 @@ export class Hours extends Command {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(Hours)
-    const auth = await this.getAuthClient()
+    const auth = await getAuthClient()
     const calendarClient = calendar({auth, version: 'v3'})
 
     const startDate = parseISO(flags['start-date'])
@@ -90,28 +88,5 @@ export class Hours extends Command {
     const start = new Date(event.start.dateTime)
     const end = new Date(event.end.dateTime)
     return (end.getTime() - start.getTime()) / (1000 * 60 * 60) // Convert to hours
-  }
-
-  private async getAuthClient(): Promise<OAuth2Client> {
-    const credentialsPath = path.join(this.config.configDir, 'credentials.json')
-    const tokenPath = path.join(this.config.configDir, 'token.json')
-
-    if (!fs.existsSync(credentialsPath)) {
-      throw new Error('No credentials.json found. Please follow setup instructions.')
-    }
-
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'))
-    const {client_id, client_secret, redirect_uris} = credentials.installed
-
-    const oAuth2Client = new OAuth2Client(client_id, client_secret, redirect_uris[0])
-
-    if (fs.existsSync(tokenPath)) {
-      const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8'))
-      oAuth2Client.setCredentials(token)
-    } else {
-      throw new Error('No token.json found. Please follow setup instructions.')
-    }
-
-    return oAuth2Client
   }
 }
