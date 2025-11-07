@@ -2,18 +2,17 @@
 import type {calendar_v3 as CalendarV3} from '@googleapis/calendar'
 
 import {calendar} from '@googleapis/calendar'
-import {confirm} from '@inquirer/prompts'
+import {confirm, select} from '@inquirer/prompts'
 import {Args, Command, Flags} from '@oclif/core'
 import {addDays, format, parseISO} from 'date-fns'
 
-import {getBundleByName, saveBundle} from '../repositories/bundle.repository.js'
+import {getAllBundlesByStatus, getBundleByName, saveBundle} from '../repositories/bundle.repository.js'
 import {getAuthClient} from '../services/auth.js'
 import {getConfig} from '../services/config.js'
 
 export class Hours extends Command {
   static args = {
     query: Args.string({
-      default: '*',
       description: 'Epic name to search for in event titles',
       required: false,
     }),
@@ -57,6 +56,25 @@ export class Hours extends Command {
       bundle = await getBundleByName(flags.bundle)
       this.log(`Bundle: ${bundle.toString()}`)
       searchQuery = bundle.name
+    } else if (!args.query) {
+      // eslint-disable-next-line camelcase
+      const bundlesResult = await getAllBundlesByStatus('In Progress', {page_size: 10})
+      if (bundlesResult.bundles.length === 0) {
+        this.log('No bundles found')
+        return
+      }
+
+      const selectedBundleName = await select({
+        choices: bundlesResult.bundles.map((b) => ({
+          name: b.name,
+          value: b.name,
+        })),
+        message: 'Select a bundle:',
+      })
+
+      bundle = await getBundleByName(selectedBundleName)
+      // this.log(`Bundle: ${bundle.toString()}`)
+      searchQuery = bundle.name
     }
 
     const startDateString =
@@ -81,7 +99,7 @@ export class Hours extends Command {
       searchQuery === '*'
         ? events
         : events.filter((event: CalendarV3.Schema$Event) =>
-            event.summary?.toLowerCase().includes(searchQuery.toLowerCase()),
+            event.summary?.toLowerCase().includes(searchQuery?.toLowerCase() ?? ''),
           )
 
     const totalHours = matchingEvents.reduce(

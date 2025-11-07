@@ -103,7 +103,12 @@ export interface GetAllBundlesResult {
   next_cursor: null | string
 }
 
-export async function getAllBundles(options: GetAllBundlesOptions = {}): Promise<GetAllBundlesResult> {
+type StatusEnum = "Won't Do" | 'Completed' | 'In Progress' | 'Not Started'
+
+export async function getAllBundlesByStatus(
+  status: StatusEnum,
+  options: GetAllBundlesOptions = {},
+): Promise<GetAllBundlesResult> {
   // eslint-disable-next-line camelcase
   const {page_size, sorts, start_cursor} = options
 
@@ -112,6 +117,12 @@ export async function getAllBundles(options: GetAllBundlesOptions = {}): Promise
     data_source_id: notionConfig.bundlesDbId as string,
     // eslint-disable-next-line camelcase
     ...(page_size && {page_size}),
+    filter: {
+      property: 'Status',
+      status: {
+        equals: status,
+      },
+    },
     ...(sorts && {sorts}),
     // eslint-disable-next-line camelcase
     ...(start_cursor && {start_cursor}),
