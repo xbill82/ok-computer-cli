@@ -146,8 +146,7 @@ export class Hours extends Command {
     this.log(`Total hours: ${totalHours.toFixed(2)} (${totalDays.toFixed(2)} days)`)
 
     if (bundle) {
-      bundle.spentDays = totalDays
-      bundle.exceeded = bundle.spentDays > bundle.estimatedDays
+      bundle.spentDays = Math.round(totalDays)
 
       const confirmUpdate = await confirm({message: 'Do you want to update the bundle?'})
       if (confirmUpdate) {

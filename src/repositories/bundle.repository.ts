@@ -19,8 +19,8 @@ export class Bundle {
   exceeded: boolean
   id: string
   name: string
-  spentDays: number
   startDate: Date
+  private _spentDays: number
 
   constructor(page: PageObjectResponse | PartialPageObjectResponse) {
     if (!('properties' in page)) {
@@ -53,12 +53,21 @@ export class Bundle {
       startDateProperty && 'date' in startDateProperty && startDateProperty.date?.start
         ? new Date(startDateProperty.date.start)
         : new Date()
-    this.spentDays =
+    this._spentDays =
       spentDaysProperty && 'number' in spentDaysProperty && spentDaysProperty.number ? spentDaysProperty.number : 0
   }
 
+  get spentDays(): number {
+    return this._spentDays
+  }
+
+  set spentDays(value: number) {
+    this._spentDays = value
+    this.exceeded = value > this.estimatedDays
+  }
+
   toString(): string {
-    return `Bundle(name: ${this.name}, spentDays: ${this.spentDays}, estimatedDays: ${this.estimatedDays}, exceeded: ${this.exceeded})`
+    return `Bundle(name: ${this.name}, spentDays: ${this._spentDays}, estimatedDays: ${this.estimatedDays}, exceeded: ${this.exceeded})`
   }
 }
 
