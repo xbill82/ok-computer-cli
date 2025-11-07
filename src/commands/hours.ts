@@ -37,6 +37,12 @@ export class Hours extends Command {
       description: 'Start date (YYYY-MM-DD). If not provided and bundle is specified, uses bundle start date',
       required: false,
     }),
+    timespan: Flags.string({
+      char: 't',
+      description: 'Timespan to use. Can be "last-week", "last-month", "last-year"',
+      options: ['last-week', 'last-month', 'last-year'],
+      required: false,
+    }),
     verbose: Flags.boolean({
       char: 'v',
       description: 'Shows the matching events',
@@ -77,11 +83,37 @@ export class Hours extends Command {
       searchQuery = bundle.name
     }
 
-    const startDateString =
-      flags['start-date'] ||
-      (bundle ? format(bundle.startDate, 'yyyy-MM-dd') : format(addDays(new Date(), -90), 'yyyy-MM-dd'))
-    const startDate = parseISO(startDateString)
-    const endDate = addDays(parseISO(flags['end-date']), 1) // Include the end date
+    let startDate = new Date()
+    const endDate = addDays(parseISO(flags['end-date']), 1) || new Date()
+
+    if (flags.timespan) {
+      const {timespan} = flags
+      switch (timespan) {
+        case 'last-week': {
+          startDate.setDate(startDate.getDate() - 7)
+          break
+        }
+
+        case 'last-month': {
+          startDate.setMonth(startDate.getMonth() - 1)
+          break
+        }
+
+        case 'last-year': {
+          startDate.setFullYear(startDate.getFullYear() - 1)
+          break
+        }
+
+        default: {
+          throw new Error(`Invalid timespan: ${timespan}`)
+        }
+      }
+    } else if (bundle) {
+      const startDateString = format(bundle.startDate, 'yyyy-MM-dd')
+      startDate = parseISO(startDateString)
+    } else if (flags['start-date']) {
+      startDate = parseISO(flags['start-date'])
+    }
 
     const config = getConfig()
     const calendarId = (config.calendarId as string) || 'primary'
