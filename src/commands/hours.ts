@@ -2,10 +2,13 @@
 import type {calendar_v3 as CalendarV3} from '@googleapis/calendar'
 
 import {calendar} from '@googleapis/calendar'
+import {confirm} from '@inquirer/prompts'
 import {Args, Command, Flags} from '@oclif/core'
 import {addDays, format, parseISO} from 'date-fns'
 
+import {getBundleByName, saveBundle} from '../repositories/bundle.repository.js'
 import {getAuthClient} from '../services/auth.js'
+import {getConfig} from '../services/config.js'
 
 export class Hours extends Command {
   static args = {
@@ -19,6 +22,11 @@ export class Hours extends Command {
   static description = 'Calculate hours spent on epics from Google Calendar events'
 
   static flags = {
+    bundle: Flags.string({
+      char: 'b',
+      description: 'Bundle name',
+      required: false,
+    }),
     'end-date': Flags.string({
       char: 'e',
       default: async () => format(new Date(), 'yyyy-MM-dd'),
@@ -27,8 +35,7 @@ export class Hours extends Command {
     }),
     'start-date': Flags.string({
       char: 's',
-      default: async () => format(addDays(new Date(), -90), 'yyyy-MM-dd'),
-      description: 'Start date (YYYY-MM-DD)',
+      description: 'Start date (YYYY-MM-DD). If not provided and bundle is specified, uses bundle start date',
       required: false,
     }),
     verbose: Flags.boolean({
@@ -43,11 +50,26 @@ export class Hours extends Command {
     const auth = await getAuthClient()
     const calendarClient = calendar({auth, version: 'v3'})
 
-    const startDate = parseISO(flags['start-date'])
+    let searchQuery = args.query
+    let bundle = null
+
+    if (flags.bundle) {
+      bundle = await getBundleByName(flags.bundle)
+      this.log(`Bundle: ${bundle.toString()}`)
+      searchQuery = bundle.name
+    }
+
+    const startDateString =
+      flags['start-date'] ||
+      (bundle ? format(bundle.startDate, 'yyyy-MM-dd') : format(addDays(new Date(), -90), 'yyyy-MM-dd'))
+    const startDate = parseISO(startDateString)
     const endDate = addDays(parseISO(flags['end-date']), 1) // Include the end date
 
+    const config = getConfig()
+    const calendarId = (config.calendarId as string) || 'primary'
+
     const response = await calendarClient.events.list({
-      calendarId: 'primary',
+      calendarId,
       orderBy: 'startTime',
       singleEvents: true,
       timeMax: endDate.toISOString(),
@@ -56,10 +78,10 @@ export class Hours extends Command {
 
     const events = response.data.items || []
     const matchingEvents =
-      args.query === '*'
+      searchQuery === '*'
         ? events
         : events.filter((event: CalendarV3.Schema$Event) =>
-            event.summary?.toLowerCase().includes(args.query.toLowerCase()),
+            event.summary?.toLowerCase().includes(searchQuery.toLowerCase()),
           )
 
     const totalHours = matchingEvents.reduce(
@@ -67,9 +89,22 @@ export class Hours extends Command {
       0,
     )
 
-    this.log(`\nResults for epic: ${args.query}`)
+    const totalDays = totalHours / 7
+
+    this.log(`\nResults for epic: ${searchQuery}`)
     this.log(`Period: ${format(startDate, 'yyyy-MM-dd')} to ${format(parseISO(flags['end-date']), 'yyyy-MM-dd')}`)
-    this.log(`Total hours: ${totalHours.toFixed(2)} (${(totalHours / 7).toFixed(2)} days)`)
+    this.log(`Total hours: ${totalHours.toFixed(2)} (${totalDays.toFixed(2)} days)`)
+
+    if (bundle) {
+      bundle.spentDays = totalDays
+      bundle.exceeded = bundle.spentDays > bundle.estimatedDays
+
+      const confirmUpdate = await confirm({message: 'Do you want to update the bundle?'})
+      if (confirmUpdate) {
+        await saveBundle(bundle)
+        this.log(`\nBundle updated: ${bundle.toString()}`)
+      }
+    }
 
     if (flags.verbose) {
       this.log(`\nMatching events:`)
