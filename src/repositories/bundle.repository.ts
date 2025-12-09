@@ -19,9 +19,12 @@ export class Bundle {
   exceeded: boolean
   id: string
   name: string
+  query: string
+  recurrence: string
   startDate: Date
   private _spentDays: number
 
+  // eslint-disable-next-line complexity
   constructor(page: PageObjectResponse | PartialPageObjectResponse) {
     if (!('properties' in page)) {
       throw new Error('Page properties are not available')
@@ -36,6 +39,8 @@ export class Bundle {
     const exceededProperty = properties.Exceeded
     const spentDaysProperty = properties['Time spent (days)']
     const startDateProperty = properties['Start date']
+    const recurrenceProperty = properties.Recurrence
+    const queryProperty = properties.Query
 
     this.estimatedDays =
       estimatedDaysProperty && 'number' in estimatedDaysProperty && estimatedDaysProperty.number
@@ -55,6 +60,16 @@ export class Bundle {
         : new Date()
     this._spentDays =
       spentDaysProperty && 'number' in spentDaysProperty && spentDaysProperty.number ? spentDaysProperty.number : 0
+    this.recurrence =
+      recurrenceProperty && 'select' in recurrenceProperty && recurrenceProperty.select?.name
+        ? recurrenceProperty.select.name
+        : 'None'
+    this.query =
+      queryProperty && 'rich_text' in queryProperty && queryProperty.rich_text[0]?.plain_text
+        ? queryProperty.rich_text[0].plain_text
+        : queryProperty && 'title' in queryProperty && queryProperty.title[0]?.plain_text
+        ? queryProperty.title[0].plain_text
+        : ''
   }
 
   get spentDays(): number {

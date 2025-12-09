@@ -1,10 +1,15 @@
+/* eslint-disable complexity */
 /* eslint-disable perfectionist/sort-classes */
 import type {calendar_v3 as CalendarV3} from '@googleapis/calendar'
 
 import {calendar} from '@googleapis/calendar'
 import {confirm, select} from '@inquirer/prompts'
 import {Args, Command, Flags} from '@oclif/core'
-import {addDays, format, parseISO} from 'date-fns'
+import {addDays, endOfMonth, format, parseISO, startOfMonth, subMonths} from 'date-fns'
+import {exec} from 'node:child_process'
+import {promisify} from 'node:util'
+
+const execAsync = promisify(exec)
 
 import {getAllBundlesByStatus, getBundleByName, saveBundle} from '../repositories/bundle.repository.js'
 import {getAuthClient} from '../services/auth.js'
@@ -61,7 +66,10 @@ export class Hours extends Command {
     if (flags.bundle) {
       bundle = await getBundleByName(flags.bundle)
       this.log(`Bundle: ${bundle.toString()}`)
-      searchQuery = bundle.name
+      searchQuery = bundle.query || bundle.name
+      if (this.shouldHandleMonthlyRecurrence(flags)) {
+        await this.handleMonthlyRecurrence(bundle, flags)
+      }
     } else if (!args.query) {
       // eslint-disable-next-line camelcase
       const bundlesResult = await getAllBundlesByStatus('In Progress', {page_size: 10})
@@ -70,21 +78,44 @@ export class Hours extends Command {
         return
       }
 
+      const now = new Date()
+      const previousMonth = subMonths(now, 1)
+      const previousMonthName = format(previousMonth, 'MMMM')
+      const previousMonthStart = startOfMonth(previousMonth)
+      const previousMonthEnd = endOfMonth(previousMonth)
+
       const selectedBundleName = await select({
-        choices: bundlesResult.bundles.map((b) => ({
-          name: b.name,
-          value: b.name,
-        })),
+        choices: [
+          {
+            name: `${previousMonthName} recap`,
+            value: `__RECAP__|${format(previousMonthStart, 'yyyy-MM-dd')}|${format(previousMonthEnd, 'yyyy-MM-dd')}`,
+          },
+          ...bundlesResult.bundles.map((b) => ({
+            name: b.name,
+            value: b.name,
+          })),
+        ],
         message: 'Select a bundle:',
       })
 
-      bundle = await getBundleByName(selectedBundleName)
-      // this.log(`Bundle: ${bundle.toString()}`)
-      searchQuery = bundle.name
+      if (selectedBundleName.startsWith('__RECAP__|')) {
+        const [, startDateStr, endDateStr] = selectedBundleName.split('|')
+        bundle = null
+        searchQuery = '*'
+        flags['start-date'] = startDateStr
+        flags['end-date'] = endDateStr
+      } else {
+        bundle = await getBundleByName(selectedBundleName)
+        searchQuery = bundle.query || bundle.name
+        if (this.shouldHandleMonthlyRecurrence(flags)) {
+          await this.handleMonthlyRecurrence(bundle, flags)
+        }
+      }
     }
 
     let startDate = new Date()
-    const endDate = addDays(parseISO(flags['end-date']), 1) || new Date()
+    const endDateString = flags['end-date'] || format(new Date(), 'yyyy-MM-dd')
+    const endDate = addDays(parseISO(endDateString), 1)
 
     if (flags.timespan) {
       const {timespan} = flags
@@ -108,7 +139,7 @@ export class Hours extends Command {
           throw new Error(`Invalid timespan: ${timespan}`)
         }
       }
-    } else if (bundle) {
+    } else if (bundle && bundle.recurrence !== 'Monthly') {
       const startDateString = format(bundle.startDate, 'yyyy-MM-dd')
       startDate = parseISO(startDateString)
     } else if (flags['start-date']) {
@@ -140,24 +171,108 @@ export class Hours extends Command {
     )
 
     const totalDays = totalHours / 7
+    const totalHoursFormatted = totalHours.toFixed(2)
 
     this.log(`\nResults for epic: ${searchQuery}`)
-    this.log(`Period: ${format(startDate, 'yyyy-MM-dd')} to ${format(parseISO(flags['end-date']), 'yyyy-MM-dd')}`)
-    this.log(`Total hours: ${totalHours.toFixed(2)} (${totalDays.toFixed(2)} days)`)
+    this.log(`Period: ${format(startDate, 'yyyy-MM-dd')} to ${endDateString}`)
+    this.log(`Total hours: ${totalHoursFormatted} (${totalDays.toFixed(2)} days)`)
+
+    // Copy total hours to clipboard
+    try {
+      const {platform} = process
+      let copyCommand: string
+
+      switch (platform) {
+        case 'darwin': {
+          copyCommand = `echo -n "${totalHoursFormatted}" | pbcopy`
+          break
+        }
+
+        case 'linux': {
+          copyCommand = `echo -n "${totalHoursFormatted}" | xclip -selection clipboard`
+          break
+        }
+
+        case 'win32': {
+          copyCommand = `echo ${totalHoursFormatted} | clip`
+          break
+        }
+
+        default: {
+          throw new Error(`Unsupported platform: ${platform}`)
+        }
+      }
+
+      await execAsync(copyCommand)
+      this.log(`\n✓ Total hours (${totalHoursFormatted}) copied to clipboard`)
+    } catch (error) {
+      // Silently fail if clipboard copy doesn't work
+      this.debug(`Failed to copy to clipboard: ${error}`)
+    }
 
     if (bundle) {
       bundle.spentDays = Math.round(totalDays)
 
-      const confirmUpdate = await confirm({message: 'Do you want to update the bundle?'})
-      if (confirmUpdate) {
-        await saveBundle(bundle)
-        this.log(`\nBundle updated: ${bundle.toString()}`)
+      // Check if total days exceed estimation
+      if (totalDays > bundle.estimatedDays) {
+        this.log(`\n⚠️  Warning: Total days (${totalDays.toFixed(2)}) exceed estimation (${bundle.estimatedDays})`)
+      }
+
+      // Skip saving for recurrent bundles
+      if (bundle.recurrence !== 'Monthly') {
+        const confirmUpdate = await confirm({message: 'Do you want to update the bundle?'})
+        if (confirmUpdate) {
+          await saveBundle(bundle)
+          this.log(`\nBundle updated: ${bundle.toString()}`)
+        }
       }
     }
 
     if (flags.verbose) {
       this.log(`\nMatching events:`)
       this.printEvents(matchingEvents)
+    }
+  }
+
+  private shouldHandleMonthlyRecurrence(flags: Record<string, unknown>): boolean {
+    // Skip monthly recurrence if timespan or start-date are explicitly provided
+    if (flags.timespan || flags['start-date']) {
+      return false
+    }
+
+    // Skip if end-date was explicitly set (different from today's default)
+    const endDateString = flags['end-date'] as string | undefined
+    if (endDateString) {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      if (endDateString !== today) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  private async handleMonthlyRecurrence(
+    bundle: Awaited<ReturnType<typeof getBundleByName>>,
+    flags: Record<string, unknown>,
+  ): Promise<void> {
+    if (bundle.recurrence === 'Monthly') {
+      const monthSelection = await select({
+        choices: [
+          {name: 'Current month', value: 'current'},
+          {name: 'Last month', value: 'last'},
+        ],
+        message: 'Select month:',
+      })
+
+      const now = new Date()
+      const targetMonth = monthSelection === 'current' ? now : subMonths(now, 1)
+
+      const monthStart = startOfMonth(targetMonth)
+      const monthEnd = endOfMonth(targetMonth)
+
+      flags['start-date'] = format(monthStart, 'yyyy-MM-dd')
+      flags['end-date'] = format(monthEnd, 'yyyy-MM-dd')
     }
   }
 
