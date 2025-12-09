@@ -20,7 +20,7 @@ $ npm install -g ok-computer-cli
 $ okc COMMAND
 running command...
 $ okc (--version)
-ok-computer-cli/0.0.0 darwin-arm64 node-v20.15.0
+ok-computer-cli/0.0.0 darwin-arm64 node-v20.18.3
 $ okc --help [COMMAND]
 USAGE
   $ okc COMMAND
@@ -29,7 +29,6 @@ USAGE
 <!-- usagestop -->
 # Commands
 <!-- commands -->
-* [`okc auth`](#okc-auth)
 * [`okc help [COMMAND]`](#okc-help-command)
 * [`okc hours [QUERY]`](#okc-hours-query)
 * [`okc plugins`](#okc-plugins)
@@ -42,20 +41,6 @@ USAGE
 * [`okc plugins uninstall [PLUGIN]`](#okc-plugins-uninstall-plugin)
 * [`okc plugins unlink [PLUGIN]`](#okc-plugins-unlink-plugin)
 * [`okc plugins update`](#okc-plugins-update)
-
-## `okc auth`
-
-Authenticate with Google Calendar
-
-```
-USAGE
-  $ okc auth
-
-DESCRIPTION
-  Authenticate with Google Calendar
-```
-
-_See code: [src/commands/auth.ts](https://github.com/xbill82/ok-computer-cli/blob/v0.0.0/src/commands/auth.ts)_
 
 ## `okc help [COMMAND]`
 
@@ -83,14 +68,17 @@ Calculate hours spent on epics from Google Calendar events
 
 ```
 USAGE
-  $ okc hours [QUERY] [-e <value>] [-s <value>] [-v]
+  $ okc hours [QUERY] [-b <value>] [-e <value>] [-s <value>] [-t last-week|last-month|last-year] [-v]
 
 ARGUMENTS
-  QUERY  [default: *] Epic name to search for in event titles
+  QUERY  Epic name to search for in event titles
 
 FLAGS
-  -e, --end-date=<value>    [default: 2025-03-04] End date (YYYY-MM-DD)
-  -s, --start-date=<value>  [default: 2024-12-04] Start date (YYYY-MM-DD)
+  -b, --bundle=<value>      Bundle name
+  -e, --end-date=<value>    [default: 2025-12-09] End date (YYYY-MM-DD)
+  -s, --start-date=<value>  Start date (YYYY-MM-DD). If not provided and bundle is specified, uses bundle start date
+  -t, --timespan=<option>   Timespan to use. Can be "last-week", "last-month", "last-year"
+                            <options: last-week|last-month|last-year>
   -v, --verbose             Shows the matching events
 
 DESCRIPTION
