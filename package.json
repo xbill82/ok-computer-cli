@@ -16,7 +16,8 @@
     "@oclif/plugin-plugins": "^5",
     "date-fns": "^4.1.0",
     "google-auth-library": "^9.15.0",
-    "notion-plus": "^0.1.7"
+    "notion-plus": "^0.1.7",
+    "ora": "^9.3.0"
   },
   "devDependencies": {
     "@oclif/prettier-config": "^0.2.1",

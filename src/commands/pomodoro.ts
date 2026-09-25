@@ -2,8 +2,9 @@ import {calendar} from '@googleapis/calendar'
 import {input, select} from '@inquirer/prompts'
 import {Command, Flags} from '@oclif/core'
 import readline from 'node:readline'
+import ora from 'ora'
 
-import {getAllBundlesByStatus, getBundleByName} from '../repositories/bundle.repository.js'
+import {Bundle, getAllBundlesByStatus, getBundleByName} from '../repositories/bundle.repository.js'
 import {getAuthClient} from '../services/auth.js'
 import {getConfig} from '../services/config.js'
 
@@ -19,26 +20,37 @@ export class Pomodoro extends Command {
     const {flags} = await this.parse(Pomodoro)
 
     // 1. Bundle selection
-    let bundleName: string
+    let bundle: Bundle
 
     if (flags.bundle) {
-      const bundle = await getBundleByName(flags.bundle)
-      bundleName = bundle.name
+      const spinner = ora('Loading bundle...').start()
+      bundle = await getBundleByName(flags.bundle)
+      spinner.stop()
     } else {
+      const spinner = ora('Loading bundles...').start()
       // eslint-disable-next-line camelcase
-      const bundlesResult = await getAllBundlesByStatus('In Progress', {page_size: 10})
+      const bundlesResult = await getAllBundlesByStatus('In progress', {page_size: 10})
+      spinner.stop()
       if (bundlesResult.bundles.length === 0) {
         this.log('No bundles in progress found')
         return
       }
 
-      bundleName = await select({
+      const selectedBundleId = await select({
         choices: bundlesResult.bundles.map((b) => ({
           name: b.name,
-          value: b.name,
+          value: b.id,
         })),
         message: 'Select a bundle:',
       })
+
+      const selectedBundle = bundlesResult.bundles.find((b) => b.id === selectedBundleId)
+      if (!selectedBundle) {
+        this.log('Selected bundle not found')
+        return
+      }
+
+      bundle = selectedBundle
     }
 
     // 2. Task name prompt
@@ -66,7 +78,8 @@ export class Pomodoro extends Command {
     // 4. Confirmation prompt with option to change task name
     let confirmed = false
     while (!confirmed) {
-      const eventTitle = `[${bundleName}] ${taskName}`
+      const eventTitle = `[${bundle.query || bundle.name}] ${taskName}`
+      // eslint-disable-next-line no-await-in-loop
       const action = await select({
         choices: [
           {name: 'Yes, create event', value: 'yes'},
@@ -82,6 +95,7 @@ export class Pomodoro extends Command {
       }
 
       if (action === 'change') {
+        // eslint-disable-next-line no-await-in-loop
         taskName = await input({
           default: taskName,
           message: 'New task name:',
@@ -93,12 +107,12 @@ export class Pomodoro extends Command {
     }
 
     // 5. Create calendar event
-    const eventTitle = `[${bundleName}] ${taskName}`
+    const eventTitle = `[${bundle.query || bundle.name}] ${taskName}`
     const auth = await getAuthClient()
     const calendarClient = calendar({auth, version: 'v3'})
     const config = getConfig()
     const calendarId = (config.calendarId as string) || 'primary'
-    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone
 
     await calendarClient.events.insert({
       calendarId,
@@ -123,8 +137,9 @@ export class Pomodoro extends Command {
 
   private runTimer(): Promise<{endTime: Date; startTime: Date} | null> {
     return new Promise((resolve) => {
-      const startTime = new Date()
+      let startTime = new Date()
       let pausedDuration = 0
+      let isEditingStartTime = false
       let pauseStartTime: Date | null = null
       let isPaused = false
       let isStopped = false
@@ -137,8 +152,23 @@ export class Pomodoro extends Command {
 
       process.stdin.resume()
 
+      const formatTime = (date: Date): string => date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+
+      const parseStartTime = (value: string): Date | null => {
+        const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+        if (!match) return null
+
+        const hours = Number(match[1])
+        const minutes = Number(match[2])
+        if (hours > 23 || minutes > 59) return null
+
+        const date = new Date()
+        date.setHours(hours, minutes, 0, 0)
+        return date
+      }
+
       const updateDisplay = () => {
-        if (isStopped) return
+        if (isStopped || isEditingStartTime) return
 
         const now = new Date()
         let elapsed = now.getTime() - startTime.getTime() - pausedDuration
@@ -147,7 +177,9 @@ export class Pomodoro extends Command {
         }
 
         const status = isPaused ? ' [PAUSED]' : ''
-        process.stdout.write(`\r${this.formatDuration(elapsed)}${status}  (p=pause, s=stop)   `)
+        process.stdout.write(
+          `\rStarted ${formatTime(startTime)} | ${this.formatDuration(elapsed)}${status}  (p=pause, t=start time, s=stop)   `,
+        )
       }
 
       const interval = setInterval(updateDisplay, 1000)
@@ -164,6 +196,41 @@ export class Pomodoro extends Command {
         process.stdout.write('\n')
       }
 
+      const editStartTime = async () => {
+        isEditingStartTime = true
+        process.stdin.removeListener('keypress', onKeypress)
+        if (process.stdin.isTTY) {
+          process.stdin.setRawMode(false)
+        }
+
+        process.stdout.write('\n')
+
+        const answer = await input({
+          default: formatTime(startTime),
+          message: 'New start time (HH:MM):',
+          validate(value) {
+            const parsed = parseStartTime(value)
+            if (!parsed) return 'Invalid time, expected HH:MM'
+            if (parsed.getTime() > Date.now()) return 'Start time cannot be in the future'
+            return true
+          },
+        }).catch(() => null)
+
+        const parsed = answer ? parseStartTime(answer) : null
+        if (parsed) {
+          startTime = parsed
+        }
+
+        if (process.stdin.isTTY) {
+          process.stdin.setRawMode(true)
+        }
+
+        process.stdin.resume()
+        process.stdin.on('keypress', onKeypress)
+        isEditingStartTime = false
+        updateDisplay()
+      }
+
       const onKeypress = (_str: string, key: {ctrl: boolean; name: string}) => {
         if (key.ctrl && key.name === 'c') {
           isStopped = true
@@ -176,7 +243,7 @@ export class Pomodoro extends Command {
           if (isPaused) {
             // Resume
             if (pauseStartTime) {
-              pausedDuration += new Date().getTime() - pauseStartTime.getTime()
+              pausedDuration += Date.now() - pauseStartTime.getTime()
               pauseStartTime = null
             }
 
@@ -188,6 +255,11 @@ export class Pomodoro extends Command {
           }
 
           updateDisplay()
+        }
+
+        if (key.name === 't') {
+          editStartTime()
+          return
         }
 
         if (key.name === 's') {

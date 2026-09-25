@@ -72,7 +72,7 @@ export class Hours extends Command {
       }
     } else if (!args.query) {
       // eslint-disable-next-line camelcase
-      const bundlesResult = await getAllBundlesByStatus('In Progress', {page_size: 10})
+      const bundlesResult = await getAllBundlesByStatus('In progress', {page_size: 10})
       if (bundlesResult.bundles.length === 0) {
         this.log('No bundles found')
         return

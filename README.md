@@ -20,7 +20,7 @@ $ npm install -g ok-computer-cli
 $ okc COMMAND
 running command...
 $ okc (--version)
-ok-computer-cli/0.0.0 darwin-arm64 node-v20.18.3
+ok-computer-cli/0.0.0 darwin-arm64 node-v22.19.0
 $ okc --help [COMMAND]
 USAGE
   $ okc COMMAND
@@ -41,6 +41,7 @@ USAGE
 * [`okc plugins uninstall [PLUGIN]`](#okc-plugins-uninstall-plugin)
 * [`okc plugins unlink [PLUGIN]`](#okc-plugins-unlink-plugin)
 * [`okc plugins update`](#okc-plugins-update)
+* [`okc pomodoro`](#okc-pomodoro)
 
 ## `okc help [COMMAND]`
 
@@ -75,7 +76,7 @@ ARGUMENTS
 
 FLAGS
   -b, --bundle=<value>      Bundle name
-  -e, --end-date=<value>    [default: 2025-12-09] End date (YYYY-MM-DD)
+  -e, --end-date=<value>    [default: 2026-03-20] End date (YYYY-MM-DD)
   -s, --start-date=<value>  Start date (YYYY-MM-DD). If not provided and bundle is specified, uses bundle start date
   -t, --timespan=<option>   Timespan to use. Can be "last-week", "last-month", "last-year"
                             <options: last-week|last-month|last-year>
@@ -376,4 +377,22 @@ DESCRIPTION
 ```
 
 _See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.24/src/commands/plugins/update.ts)_
+
+## `okc pomodoro`
+
+Start a timer for a bundle and create a calendar event
+
+```
+USAGE
+  $ okc pomodoro [-b <value>] [-t <value>]
+
+FLAGS
+  -b, --bundle=<value>  Bundle name
+  -t, --task=<value>    Task name (default: WIP)
+
+DESCRIPTION
+  Start a timer for a bundle and create a calendar event
+```
+
+_See code: [src/commands/pomodoro.ts](https://github.com/xbill82/ok-computer-cli/blob/v0.0.0/src/commands/pomodoro.ts)_
 <!-- commandsstop -->

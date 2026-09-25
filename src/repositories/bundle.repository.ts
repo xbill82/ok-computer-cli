@@ -68,8 +68,8 @@ export class Bundle {
       queryProperty && 'rich_text' in queryProperty && queryProperty.rich_text[0]?.plain_text
         ? queryProperty.rich_text[0].plain_text
         : queryProperty && 'title' in queryProperty && queryProperty.title[0]?.plain_text
-        ? queryProperty.title[0].plain_text
-        : ''
+          ? queryProperty.title[0].plain_text
+          : ''
   }
 
   get spentDays(): number {
@@ -127,7 +127,7 @@ export interface GetAllBundlesResult {
   next_cursor: null | string
 }
 
-type StatusEnum = "Won't Do" | 'Completed' | 'In Progress' | 'Not Started'
+type StatusEnum = "Won't Do" | 'Completed' | 'In progress' | 'Not Started'
 
 export async function getAllBundlesByStatus(
   status: StatusEnum,
